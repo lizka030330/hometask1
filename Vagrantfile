@@ -24,12 +24,13 @@ Vagrant.configure("2") do |config|
   # within the machine from a port on the host machine. In the example below,
   # accessing "localhost:8080" will access port 80 on the guest machine.
   # NOTE: This will enable public access to the opened port
-  config.vm.network "forwarded_port", guest: 80, host: 8888
+  # config.vm.network "forwarded_port", guest: 80, host: 8080
 
   # Create a forwarded port mapping which allows access to a specific port
   # within the machine from a port on the host machine and only allow access
   # via 127.0.0.1 to disable public access
   # config.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
+  config.vm.network "forwarded_port", guest: 80, host: 8888, host_ip: "127.0.0.1"
 
   # Create a private network, which allows host-only access to the machine
   # using a specific IP.
@@ -45,6 +46,7 @@ Vagrant.configure("2") do |config|
   # the path on the guest to mount the folder. And the optional third
   # argument is a set of non-required options.
   # config.vm.synced_folder "../data", "/vagrant_data"
+  config.vm.synced_folder "./www-content", "/var/www/html", type: "rsync", rsync__auto: true
 
   # Disable the default share of the current code directory. Doing this
   # provides improved isolation between the vagrant box and your host
@@ -75,15 +77,30 @@ Vagrant.configure("2") do |config|
   #   apt-get update
   #   apt-get install -y apache2
   # SHELL
-    config.vm.provision "shell", inline: <<-SHELL
-      yum install -y epel-release
-      yum install -y nginx
-      setenforce 0
-      sed -ie 's/^SELINUX=.*$/SELINUX=disabled/' /etc/selinux/config
-      cat /etc/selinux/config
-      systemctl start nginx
-      systemctl enable nginx
-      systemctl disable firewalld
-      systemctl stop firewalld
-    SHELL
+  config.vm.provision "shell", inline: <<-SHELL
+    yum clean all
+    yum install -y epel-release
+    yum install -y nginx rsync
+    setenforce 0
+    sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
+    rm -f /etc/nginx/conf.d/default.conf
+    cat > /etc/nginx/conf.d/site.conf << 'EOF'
+
+server {
+    listen 80 default_server;
+    server_name _;
+    root /var/www/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+        }
+    }
+EOF
+
+    systemctl start nginx
+    systemctl enable nginx
+    systemctl disable firewalld
+    systemctl stop firewalld
+  SHELL
 end
